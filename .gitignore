@@ -1,1 +1,5 @@
 .idea
+.flattened-pom.xml
+io.kaitoshy.projects.web.user-console.iml
+.extract
+derby.log

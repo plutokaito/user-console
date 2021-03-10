@@ -1,17 +1,28 @@
 package io.kaitoshy.web.mvc;
 
 import io.kaitoshy.web.mvc.controller.Controller;
+import io.kaitoshy.web.mvc.controller.PageController;
+import io.kaitoshy.web.mvc.controller.RestController;
+import org.apache.commons.lang.StringUtils;
 
+import javax.servlet.RequestDispatcher;
 import javax.servlet.ServletConfig;
+import javax.servlet.ServletContext;
+import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import javax.ws.rs.HttpMethod;
 import javax.ws.rs.Path;
+import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.util.*;
+import java.util.logging.Logger;
 
 
 import static java.util.Arrays.asList;
+import static org.apache.commons.lang.StringUtils.substringAfter;
 
 public class FrontControllerServlet extends HttpServlet {
 
@@ -83,6 +94,60 @@ public class FrontControllerServlet extends HttpServlet {
         }
 
         return supportedHttpMethods;
+    }
+
+
+    @Override
+    public void service(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+        // 建立映射关系
+        String requestURI = request.getRequestURI();
+        // ContextPath = /a or / or ""
+        String prefixPath = request.getContextPath();
+
+        String requestMappingPath = substringAfter(requestURI,
+                StringUtils.replace(prefixPath, "//", "/"));
+
+        Controller controller = routerMapping.get(requestMappingPath);
+
+        if (controller != null) {
+            RequestMethodHandler handlerInfo = handlerMethodMapper.get(requestMappingPath);
+
+            try {
+                if (handlerInfo != null) {
+                    String httpMethod = request.getMethod();
+
+                    if (!handlerInfo.getSupportedHttpMethod().contains(httpMethod)) {
+                        response.setStatus(HttpServletResponse.SC_METHOD_NOT_ALLOWED);
+                        return;
+                    }
+
+                    if (controller instanceof PageController) {
+                        PageController pageController = PageController.class.cast(controller);
+                        String viewPath = pageController.execute(request, response);
+                        // 页面请求 forward
+
+                        ServletContext servletContext = request.getServletContext();
+                        if (!viewPath.startsWith("/")) {
+                            viewPath = "/" + viewPath;
+                        }
+                        RequestDispatcher requestDispatcher = servletContext.getRequestDispatcher(viewPath);
+                        requestDispatcher.forward(request, response);
+                    } else if (controller instanceof RestController) {
+                        // TODO
+                    }
+
+                }
+            } catch (Throwable throwable) {
+                if (throwable.getCause() instanceof IOException) {
+                    throw  (IOException) throwable.getCause();
+                } else {
+                    throw new ServletException(throwable.getCause());
+                }
+            }
+        }
+
+
     }
 
 
